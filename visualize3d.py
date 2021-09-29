@@ -8,17 +8,19 @@ import mayavi.mlab as mlab
 import cv2
 
 
-color_palette = sns.color_palette('Paired', 11)
+nuscene_colors = sns.color_palette('bright', 6)
 
 colors = sns.color_palette('Paired', 9 * 2)
 
 
 names = ['Car', 'Van', 'Truck', 'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram', 'Misc', 'DontCare']
 
-nuscene_class = [
-    'car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle',
-    'motorcycle', 'pedestrian', 'traffic_cone', 'barrier', 'DontCare'
-]
+nuscene_class = {
+    0 : 'car', 1 : 'truck', 2 : 'trailer', 3 : 'bus', 4 : 'construction_vehicle', 5 : 'bicycle',
+    6 : 'motorcycle', 7 : 'pedestrian', 8 : 'traffic_cone', 9 : 'barrier', -1 : 'DontCare'
+}
+nuscene_class_to_color = {'car' : nuscene_colors[0], 'truck': nuscene_colors[0], 'trailer': nuscene_colors[1], 'bus': nuscene_colors[1], 'construction_vehicle': nuscene_colors[4], 
+'bicycle': nuscene_colors[2], 'motorcycle': nuscene_colors[2], 'pedestrian': nuscene_colors[2], 'traffic_cone': nuscene_colors[3], 'barrier': nuscene_colors[4], 'DontCare' : nuscene_colors[5]}
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
@@ -57,7 +59,7 @@ def projection(x,y,z):
 
 
 
-def gt(cfgs, idx, lidar_path, image_file,label_path,tag):
+def gt(cfgs, idx, lidar_path, image_file,class_label_path, bbox_label_path,tag):
     image = cv2.imread(image_file, cv2.COLOR_BGR2RGB) # X    
     #points = np.fromfile(str(lidar_path), dtype=np.float32, count=-1).reshape([-1, 5])[:,:3]
     
@@ -72,19 +74,19 @@ def gt(cfgs, idx, lidar_path, image_file,label_path,tag):
     if view_type == '3D':
         mlab.points3d(points[:, 0], points[:, 1], points[:, 2], mode="sphere", figure=fig, color = (1,1,1),scale_factor = 0.02)
     elif view_type == 'BEV':
-        mlab.points3d(points[:, 0], points[:, 1], np.zeros(len(points[:,2])), mode="sphere", figure=fig, color = (1,1,1),scale_factor = 0.02, scale_mode='none')
+        mlab.points3d(points[:, 0], points[:, 1], np.zeros(len(points[:,2])), mode="sphere", figure=fig, color = (1,1,1),scale_factor = 0.04, scale_mode='none')
     else:
         pass
     
-    corners_set = np.load(label_path)
+    corners_set = np.load(bbox_label_path)
+    class_label_set = np.load(class_label_path).astype(int)
     total_label_cnt = corners_set.shape[0]
-    
-    scale_factor = 1.0
 
     for i in range(total_label_cnt):
         corners_3d = corners_set[i,:,:]
-
-        plot_nuscenes_BEV(fig,corners_3d*scale_factor)
+        class_label = class_label_set[i]
+        # plot_nuscenes_BEV(fig,corners_3d)
+        plot_nuscenes_BEV_v2(fig,corners_3d, class_label)
     
     '''
     with open(label_dir, 'r') as f:
@@ -121,7 +123,7 @@ def gt(cfgs, idx, lidar_path, image_file,label_path,tag):
     
     #mlab.view(azimuth=170,elevation=0,distance='10',roll=None,focalpoint=(0,0,0),reset_roll=True)
     #mlab.view(azimuth=170,elevation=0,distance='auto',roll=None,focalpoint=(0,0,20),reset_roll=True)
-    mlab.view(azimuth=170,elevation=0,distance=70,roll=None,focalpoint=(5,0,10),reset_roll=True)
+    mlab.view(azimuth=170,elevation=0,distance=130,roll=None,focalpoint=(5,0,10),reset_roll=True)
     
     
     save_path = cfgs['save_path']
@@ -130,9 +132,9 @@ def gt(cfgs, idx, lidar_path, image_file,label_path,tag):
        os.mkdir(save_path + '/'+ save_dir_name)
     
     if tag == 'ori':
-        mlab.savefig(filename=f'{save_path}/{save_dir_name}/{idx}_ori.jpg', size=(3000,3000), magnification=5)
+        mlab.savefig(filename=f'{save_path}/{save_dir_name}/{idx}_ori.jpg', size=(4000,3500), magnification=5)
     elif tag == 'aug':
-        mlab.savefig(filename=f'{save_path}/{save_dir_name}/{idx}_aug.jpg',size=(3000,3000), magnification=5)
+        mlab.savefig(filename=f'{save_path}/{save_dir_name}/{idx}_aug.jpg',size=(4000,3500), magnification=5)
     else:
         pass
     mlab.show()
@@ -173,7 +175,7 @@ def plot_nuscenes_BEV(fig,corners_3d):
         
         def draw(p1, p2, front=1):
             mlab.plot3d([p1[0], p2[0]], [p1[1], p2[1]], [0, 0],
-                        color=color_palette[0], tube_radius=None, line_width=2, figure=fig)
+                        color=nuscene_colors[0], tube_radius=None, line_width=2, figure=fig)
 
         # draw the lower 4 horizontal lines
         draw(corners_3d[0], corners_3d[3])  # front = 0 for the front lines
@@ -183,15 +185,16 @@ def plot_nuscenes_BEV(fig,corners_3d):
 
 def plot_nuscenes_BEV_v2(fig,corners_3d,class_label):
         
-        def draw(p1, p2, front=1):
+
+        def draw(p1, p2, class_label):
             mlab.plot3d([p1[0], p2[0]], [p1[1], p2[1]], [0, 0],
-                        color=color_palette[class_label], tube_radius=None, line_width=2, figure=fig)
+                        color=nuscene_class_to_color[nuscene_class[class_label]], tube_radius=None, line_width=4, figure=fig)
 
         # draw the lower 4 horizontal lines
-        draw(corners_3d[0], corners_3d[3])  # front = 0 for the front lines
-        draw(corners_3d[0], corners_3d[4])
-        draw(corners_3d[3], corners_3d[7])
-        draw(corners_3d[4], corners_3d[7])
+        draw(corners_3d[0], corners_3d[3], class_label=class_label)  # front = 0 for the front lines
+        draw(corners_3d[0], corners_3d[4], class_label=class_label)
+        draw(corners_3d[3], corners_3d[7], class_label=class_label)
+        draw(corners_3d[4], corners_3d[7], class_label=class_label)
 
 def plot_3d(lab,points,fig,h, w, l, x, y, z, rot):
     if lab != 'DontCare':
@@ -237,7 +240,7 @@ def plot_3d(lab,points,fig,h, w, l, x, y, z, rot):
         draw(corners_3d[5], corners_3d[1], 0)
         draw(corners_3d[6], corners_3d[2])
         draw(corners_3d[7], corners_3d[3])
-
+'''
 def plot_3d_bbox(img,xmin,ymin,xmax,ymax,h, w, l, x, y, z, rot):
     box_3d = []
     center = np.array([x,y,z])
@@ -287,7 +290,7 @@ def plot_3d_bbox(img,xmin,ymin,xmax,ymax,h, w, l, x, y, z, rot):
     cv2.line(img,(box_3d[7][0],box_3d[7][1]),(box_3d[6][0],box_3d[6][1]),colors1['nuscene'],3)
 
     cv2.imwrite(f"{file_id}.jpg", img)
-    
+'''
 def plot_2d_bbox(xmin,ymin,xmax,ymax,h, w, l, x, y, z, rot,image):
 
     img = cv2.rectangle(image,(int(xmin),int(ymin)),(int(xmax),int(ymax)),(255,0,0),2)
@@ -407,7 +410,8 @@ if __name__ == '__main__':
     
     if cfgs['dataset_type'] == 'nuscenes':
         sample_path = 'nuscenes/samples/',
-        label_path = 'nuscenes/corners/'
+        bbox_label_path = 'nuscenes/corners/',
+        class_label_path = 'nuscenes/class_label/'
         file_suffix = '.npy'
         cfgs['save_path'] = './nuscenes/results'
     
@@ -421,10 +425,11 @@ if __name__ == '__main__':
         
         lidar_path = f'./nuscenes/samples/{file_name}_ori{file_suffix}'
         corner_path = f'./nuscenes/corners/{file_name}_ori{file_suffix}'
-
-        gt(cfgs = cfgs, idx = idx, lidar_path=lidar_path, image_file=img_file, label_path=corner_path, tag = 'ori')
+        class_label_path = f'./nuscenes/class_label/{file_name}_ori{file_suffix}'
+        gt(cfgs = cfgs, idx = idx, lidar_path=lidar_path, image_file=img_file, class_label_path=class_label_path, bbox_label_path=corner_path, tag = 'ori')
 
         lidar_path = f'./nuscenes/samples/{file_name}_aug{file_suffix}'
         corner_path = f'./nuscenes/corners/{file_name}_aug{file_suffix}'
-        gt(cfgs = cfgs, idx = idx, lidar_path=lidar_path, image_file=img_file, label_path=corner_path, tag = 'aug')
+        class_label_path = f'./nuscenes/class_label/{file_name}_aug{file_suffix}'
+        gt(cfgs = cfgs, idx = idx, lidar_path=lidar_path, image_file=img_file, class_label_path=class_label_path, bbox_label_path=corner_path, tag = 'aug')
     
