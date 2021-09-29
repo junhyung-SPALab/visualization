@@ -6,17 +6,19 @@ import numpy as np
 import seaborn as sns
 import mayavi.mlab as mlab
 import cv2
+
+
+color_palette = sns.color_palette('Paired', 11)
+
 colors = sns.color_palette('Paired', 9 * 2)
 
 
-colors1 = {
-    'green': (0, 255, 0),
-    'pink': (255, 0, 255),
-    'blue': (0, 0, 255),
-    'nuscene': (255,0,100)
-}
-
 names = ['Car', 'Van', 'Truck', 'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram', 'Misc', 'DontCare']
+
+nuscene_class = [
+    'car', 'truck', 'trailer', 'bus', 'construction_vehicle', 'bicycle',
+    'motorcycle', 'pedestrian', 'traffic_cone', 'barrier', 'DontCare'
+]
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
@@ -64,7 +66,7 @@ def gt(cfgs, idx, lidar_path, image_file,label_path,tag):
     # points = np.fromfile(str(points_dir), dtype=np.float32, count=-1).reshape([-1, 3])
     # assert points.ndim != 2 or points.shape[-1] != 3, "points.shape should be (N x 3)"
 
-    fig = mlab.figure(bgcolor=(0, 0, 0), size=(2000, 1000)) #default = size=(1280, 720)
+    fig = mlab.figure(bgcolor=(0, 0, 0), size=(1280, 720)) #default = size=(1280, 720)
     view_type = cfgs['view_type']
     
     if view_type == '3D':
@@ -119,16 +121,18 @@ def gt(cfgs, idx, lidar_path, image_file,label_path,tag):
     
     #mlab.view(azimuth=170,elevation=0,distance='10',roll=None,focalpoint=(0,0,0),reset_roll=True)
     #mlab.view(azimuth=170,elevation=0,distance='auto',roll=None,focalpoint=(0,0,20),reset_roll=True)
-    mlab.view(azimuth=170,elevation=0,distance=20,roll=None,focalpoint=(5,0,10),reset_roll=True)
+    mlab.view(azimuth=170,elevation=0,distance=70,roll=None,focalpoint=(5,0,10),reset_roll=True)
     
-    #if not os.path.isdir('demo'):
-    #   os.mkdir('demo')
     
     save_path = cfgs['save_path']
+    save_dir_name = cfgs['start_file']
+    if not os.path.isdir(save_path + '/'+ save_dir_name):
+       os.mkdir(save_path + '/'+ save_dir_name)
+    
     if tag == 'ori':
-        mlab.savefig(filename=f'{save_path}/{idx}_ori.jpg')
+        mlab.savefig(filename=f'{save_path}/{save_dir_name}/{idx}_ori.jpg', size=(3000,3000), magnification=5)
     elif tag == 'aug':
-        mlab.savefig(filename=f'{save_path}/{idx}_aug.jpg')
+        mlab.savefig(filename=f'{save_path}/{save_dir_name}/{idx}_aug.jpg',size=(3000,3000), magnification=5)
     else:
         pass
     mlab.show()
@@ -157,7 +161,7 @@ def plot_BEV(lab,points,fig,h, w, l, x, y, z, rot):
 
         def draw(p1, p2, front=1):
             mlab.plot3d([p1[0], p2[0]], [p1[1], p2[1]], [p1[2], p2[2]],
-                        color=colors[names.index(lab) * 2 + front], tube_radius=None, line_width=2, figure=fig)
+                        color=colors[names.index(lab) * 2 + front], tube_radius=None, line_width=4, figure=fig)
 
         # draw the lower 4 horizontal lines
         draw(corners_3d[0], corners_3d[1], 0)  # front = 0 for the front lines
@@ -169,7 +173,19 @@ def plot_nuscenes_BEV(fig,corners_3d):
         
         def draw(p1, p2, front=1):
             mlab.plot3d([p1[0], p2[0]], [p1[1], p2[1]], [0, 0],
-                        color=(0,1,0), tube_radius=None, line_width=2, figure=fig)
+                        color=color_palette[0], tube_radius=None, line_width=2, figure=fig)
+
+        # draw the lower 4 horizontal lines
+        draw(corners_3d[0], corners_3d[3])  # front = 0 for the front lines
+        draw(corners_3d[0], corners_3d[4])
+        draw(corners_3d[3], corners_3d[7])
+        draw(corners_3d[4], corners_3d[7])
+
+def plot_nuscenes_BEV_v2(fig,corners_3d,class_label):
+        
+        def draw(p1, p2, front=1):
+            mlab.plot3d([p1[0], p2[0]], [p1[1], p2[1]], [0, 0],
+                        color=color_palette[class_label], tube_radius=None, line_width=2, figure=fig)
 
         # draw the lower 4 horizontal lines
         draw(corners_3d[0], corners_3d[3])  # front = 0 for the front lines
