@@ -20,7 +20,7 @@ nuscene_class = {
     6 : 'motorcycle', 7 : 'pedestrian', 8 : 'traffic_cone', 9 : 'barrier', -1 : 'DontCare'
 }
 nuscene_class_to_color = {'car' : nuscene_colors[0], 'truck': nuscene_colors[0], 'trailer': nuscene_colors[1], 'bus': nuscene_colors[1], 'construction_vehicle': nuscene_colors[4], 
-'bicycle': nuscene_colors[2], 'motorcycle': nuscene_colors[2], 'pedestrian': nuscene_colors[2], 'traffic_cone': nuscene_colors[3], 'barrier': nuscene_colors[4], 'DontCare' : nuscene_colors[5]}
+'bicycle': nuscene_colors[2], 'motorcycle': nuscene_colors[2], 'pedestrian': nuscene_colors[2], 'traffic_cone': nuscene_colors[3], 'barrier': nuscene_colors[4], 'DontCare' : nuscene_colors[5], 'ignore' : nuscene_colors[5]}
 
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
@@ -63,7 +63,8 @@ def gt(cfgs, idx, lidar_path, image_file,class_label_path, bbox_label_path,tag):
     image = cv2.imread(image_file, cv2.COLOR_BGR2RGB) # X    
     #points = np.fromfile(str(lidar_path), dtype=np.float32, count=-1).reshape([-1, 5])[:,:3]
     
-    points = np.load(lidar_path).reshape([-1, 4])[:,:3]
+    # points = np.load(lidar_path).reshape([-1, 4])[:,:3]
+    points = np.load(lidar_path).reshape([-1, 5])[:,:3]
     
     # points = np.fromfile(str(points_dir), dtype=np.float32, count=-1).reshape([-1, 3])
     # assert points.ndim != 2 or points.shape[-1] != 3, "points.shape should be (N x 3)"
@@ -79,7 +80,8 @@ def gt(cfgs, idx, lidar_path, image_file,class_label_path, bbox_label_path,tag):
         pass
     
     corners_set = np.load(bbox_label_path)
-    class_label_set = np.load(class_label_path).astype(int)
+    #class_label_set = np.load(class_label_path).astype(int)
+    class_label_set = np.load(class_label_path).astype(str)
     total_label_cnt = corners_set.shape[0]
 
     for i in range(total_label_cnt):
@@ -187,14 +189,21 @@ def plot_nuscenes_BEV_v2(fig,corners_3d,class_label):
         
 
         def draw(p1, p2, class_label):
-            mlab.plot3d([p1[0], p2[0]], [p1[1], p2[1]], [0, 0],
-                        color=nuscene_class_to_color[nuscene_class[class_label]], tube_radius=None, line_width=4, figure=fig)
+            # mlab.plot3d([p1[0], p2[0]], [p1[1], p2[1]], [0, 0], color=nuscene_class_to_color[nuscene_class[class_label]], tube_radius=None, line_width=4, figure=fig)
+            mlab.plot3d([p1[0], p2[0]], [p1[1], p2[1]], [0, 0], color=nuscene_class_to_color[class_label], tube_radius=None, line_width=4, figure=fig)
 
         # draw the lower 4 horizontal lines
+        '''
         draw(corners_3d[0], corners_3d[3], class_label=class_label)  # front = 0 for the front lines
         draw(corners_3d[0], corners_3d[4], class_label=class_label)
         draw(corners_3d[3], corners_3d[7], class_label=class_label)
         draw(corners_3d[4], corners_3d[7], class_label=class_label)
+        '''
+
+        draw(corners_3d[0], corners_3d[1], class_label=class_label)  # front = 0 for the front lines
+        draw(corners_3d[1], corners_3d[2], class_label=class_label)
+        draw(corners_3d[2], corners_3d[3], class_label=class_label)
+        draw(corners_3d[3], corners_3d[0], class_label=class_label)
 
 def plot_3d(lab,points,fig,h, w, l, x, y, z, rot):
     if lab != 'DontCare':
@@ -404,10 +413,6 @@ if __name__ == '__main__':
             'seq_length'    : args.seq_length
              }
 
-    file_list = []
-    file_list = load_file_list(cfgs)
-    
-    
     if cfgs['dataset_type'] == 'nuscenes':
         sample_path = 'nuscenes/samples/',
         bbox_label_path = 'nuscenes/corners/',
@@ -415,13 +420,13 @@ if __name__ == '__main__':
         file_suffix = '.npy'
         cfgs['save_path'] = './nuscenes/results'
     
-
-    for idx, file_name in enumerate(file_list):
+    if cfgs['seq_length'] == 1:
         
+        file_name = cfgs['start_file']
+        idx = 0
         a = str(0).zfill(6)
         file_id = a
         img_file = f'./{file_id}.jpg'
-        #label_dir = f'./{file_id}.txt'
         
         lidar_path = f'./nuscenes/samples/{file_name}_ori{file_suffix}'
         corner_path = f'./nuscenes/corners/{file_name}_ori{file_suffix}'
@@ -432,4 +437,25 @@ if __name__ == '__main__':
         corner_path = f'./nuscenes/corners/{file_name}_aug{file_suffix}'
         class_label_path = f'./nuscenes/class_label/{file_name}_aug{file_suffix}'
         gt(cfgs = cfgs, idx = idx, lidar_path=lidar_path, image_file=img_file, class_label_path=class_label_path, bbox_label_path=corner_path, tag = 'aug')
+
+    else:
+        file_list = []
+        file_list = load_file_list(cfgs)
+
+        for idx, file_name in enumerate(file_list):
+            
+            a = str(0).zfill(6)
+            file_id = a
+            img_file = f'./{file_id}.jpg'
+            #label_dir = f'./{file_id}.txt'
+            
+            lidar_path = f'./nuscenes/samples/{file_name}_ori{str(idx)}{file_suffix}'
+            corner_path = f'./nuscenes/corners/{file_name}_ori{str(idx)}{file_suffix}'
+            class_label_path = f'./nuscenes/class_label/{file_name}_ori{str(idx)}{file_suffix}'
+            gt(cfgs = cfgs, idx = idx, lidar_path=lidar_path, image_file=img_file, class_label_path=class_label_path, bbox_label_path=corner_path, tag = 'ori')
+
+            lidar_path = f'./nuscenes/samples/{file_name}_aug{str(idx)}{file_suffix}'
+            corner_path = f'./nuscenes/corners/{file_name}_aug{str(idx)}{file_suffix}'
+            class_label_path = f'./nuscenes/class_label/{file_name}_aug{str(idx)}{file_suffix}'
+            gt(cfgs = cfgs, idx = idx, lidar_path=lidar_path, image_file=img_file, class_label_path=class_label_path, bbox_label_path=corner_path, tag = 'aug')
     
